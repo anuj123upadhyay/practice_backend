@@ -3,29 +3,31 @@ import {ApiError} from "../utils/apiError.js"
 import {User} from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/apiResponse.js"
-
+import { generateAccessAndRefreshTokens } from "../utils/generateAccessAndRefreshTokens.js"
 import  jwt from "jsonwebtoken"
+import mongoose from "mongoose";
 
 
 
 
 
-const generateAccessAndRefreshTokens = async(userId) =>{
-    try {
-        const user = await User.findById(userId)
-        const accessToken = user.generateAccessToken()
-        const refreshToken = user.generateRefreshToken()
 
-        user.refreshToken = refreshToken
-        await user.save({ validateBeforeSave: false })
+// const generateAccessAndRefreshTokens = async(userId) =>{
+//     try {
+//         const user = await User.findById(userId)
+//         const accessToken = user.generateAccessToken()
+//         const refreshToken = user.generateRefreshToken()
 
-        return {accessToken, refreshToken}
+//         user.refreshToken = refreshToken
+//         await user.save({ validateBeforeSave: false })
+
+//         return {accessToken, refreshToken}
 
 
-    } catch (error) {
-        throw new ApiError(500, "Something went wrong while generating referesh and access token")
-    }
-}
+//     } catch (error) {
+//         throw new ApiError(500, "Something went wrong while generating referesh and access token")
+//     }
+// }
 
 
 const registerUser = asyncHandler( async(req,res)=>{
@@ -64,15 +66,9 @@ const registerUser = asyncHandler( async(req,res)=>{
          throw new ApiError(409,"User with email or username alredy exist")
      }
      
-     // file kaa access given by multer since we have used middleware
+     // file  access given by multer since we have used middleware
      const avatarLocalPath =  req.files?.avatar[0]?.path;
-     // const coverImageLocalPath =  req.files?.coverImage[0]?.path;// somewhat advanced
-     // classsic way
-    //  let coverImageLocalPath;
-    //  if(req.files && Array.isArray(req.files.coverImage) && req.file.coverImage.length > 0){
-    //      coverImageLocalPath = req.files.coverImage[0].path;
-    //  }
-     // console.log(req.files)
+     
  
      if(!avatarLocalPath){
          throw new ApiError(400,"Avatar file is required");
@@ -128,13 +124,7 @@ const registerUser = asyncHandler( async(req,res)=>{
     if (!user) {
         throw new ApiError(404, "User does not exist")
     }
-    // const isPasswordValid = await user.isPasswordCorrect(password)
-    
-// const  isPasswordCorrect = async(password) => {
-//     const user = await User.findOne({email})
-//     const finalPassword =  bcrypt.compare(password,user.password)
-//     return finalPassword
-//     }
+   
 
     const isPasswordValid =  await user.isPasswordCorrect(password)
 
@@ -151,6 +141,7 @@ const registerUser = asyncHandler( async(req,res)=>{
         httpOnly: true,
         secure: true
     }
+
     return res
     .status(200)
     .cookie("accessToken", accessToken, options)
@@ -166,6 +157,7 @@ const registerUser = asyncHandler( async(req,res)=>{
     )
 
 })
+    
 
 
 
@@ -194,8 +186,8 @@ const logOut = asyncHandler(async(req,res)=>{
 })
 
 const refreshAccessToken = asyncHandler(async(req,res)=>{
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken // if a aperson uses  mobile
-    if(!refreshAccessToken){
+    const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken // if a aperson uses  mobile
+    if(!incomingRefreshToken){
         throw new ApiError(400,"Unauthorized Access")
     }
     try {
@@ -225,18 +217,24 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
 })
 
 
-const changeCurrentPassword = asyncHandler(async(req,res)=>{
-    const {oldPassword,newPassword} = req.body
-    const user = await User.findById(user?._id)
-    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
-    if(!isPasswordCorrect){
-        throw new ApiError(400,"Invalid Old Password")
+const changeCurrentPassword = asyncHandler(async(req, res) => {
+    const {oldPassword, newPassword} = req.body
 
+    
+
+    const user = await User.findById(req.user?._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordCorrect) {
+        throw new ApiError(400, "Invalid old password")
     }
+
     user.password = newPassword
     await user.save({validateBeforeSave: false})
 
-    return res.status(200).json(new ApiResponse(200, {},"Password changed successfully"))
+    return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
 
